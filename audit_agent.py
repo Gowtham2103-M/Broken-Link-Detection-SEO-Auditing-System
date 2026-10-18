@@ -8,7 +8,7 @@ def analyze_issue(issue):
     target = issue["target_url"]
 
     recommendations = {
-        "Broken Link": {
+        "Bn Link": {
             "priority": 1,
             "impact": "Visitors may reach a missing or inaccessible page. "
                       "Broken internal links can also affect site navigation.",
