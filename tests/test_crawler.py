@@ -1,5 +1,5 @@
 import unittest
-
+import heapq
 import crawler
 from classification import summarize, effective_issue
 from tests.local_site import Site
@@ -152,6 +152,40 @@ class DepthAndLimitTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             crawler.crawl_website_detailed("ftp://example.com")
 
+
+class PriorityQueueTests(unittest.TestCase):
+    def test_updated_priority_is_used_and_stale_entry_is_ignored(self):
+        queue = []
+        priority_versions = {"page-a": 1, "page-b": 1}
+        crawled = set()
+
+        # Initially, A has priority 8 and B has priority 5.
+        heapq.heappush(queue, (8, 1, "page-a", 1))
+        heapq.heappush(queue, (5, 1, "page-b", 1))
+
+        # A's priority improves to 2 before it is processed.
+        priority_versions["page-a"] += 1
+        heapq.heappush(queue, (2, 1, "page-a", 2))
+
+        processed = []
+
+        while queue:
+            priority, depth, url, version = heapq.heappop(queue)
+
+            if version != priority_versions[url]:
+                continue
+
+            if url in crawled:
+                continue
+
+            crawled.add(url)
+            processed.append((url, priority))
+
+        self.assertEqual(
+            processed,
+            [("page-a", 2), ("page-b", 5)],
+        )
+        self.assertEqual(len(crawled), 2)
 
 if __name__ == "__main__":
     unittest.main()

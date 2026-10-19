@@ -333,6 +333,7 @@ def get_progress(scan_id: int):
     }
 
 
+
 @app.get("/api/scans/{scan_id}/pages")
 def get_pages(scan_id: int):
     require_scan(scan_id)
@@ -340,13 +341,16 @@ def get_pages(scan_id: int):
     return fetch_all(
         """
         SELECT page_id, scan_id, url, http_status,
-               final_url, redirect_count, title, error, depth
+               final_url, redirect_count, title, error, depth,
+               priority, priority_reason,processed_priority,
+               processed_order
         FROM pages
         WHERE scan_id = %s
         ORDER BY page_id
         """,
         (scan_id,),
     )
+
 
 
 @app.get("/api/scans/{scan_id}/issues")

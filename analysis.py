@@ -133,3 +133,43 @@ def extract_links(base_url, soup):
         if urlparse(absolute).scheme in ("http", "https"):
             links.append(absolute)
     return links
+
+def extract_navigation_links(base_url, soup):
+    """Return absolute HTTP(S) links found inside navigation elements."""
+    from urllib.parse import urljoin
+
+    links = set()
+
+    navigation_elements = soup.find_all(
+        ["nav"],
+    )
+
+    # Also recognize common navigation containers.
+    for tag in soup.find_all(True):
+        tag_id = (tag.get("id") or "").lower()
+        classes = " ".join(tag.get("class", [])).lower()
+        role = (tag.get("role") or "").lower()
+
+        if (
+            "navigation" in tag_id
+            or "navbar" in tag_id
+            or "nav-" in tag_id
+            or "navigation" in classes
+            or "navbar" in classes
+            or "nav-" in classes
+            or role == "navigation"
+        ):
+            navigation_elements.append(tag)
+
+    for container in navigation_elements:
+        for tag in container.find_all("a", href=True):
+            href = (tag["href"] or "").strip()
+            if not href:
+                continue
+
+            absolute = urljoin(base_url, href)
+            if urlparse(absolute).scheme in ("http", "https"):
+                links.add(absolute)
+
+    return links
+

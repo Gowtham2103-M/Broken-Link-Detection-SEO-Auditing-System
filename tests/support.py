@@ -135,9 +135,23 @@ CREATE TABLE IF NOT EXISTS scans (
   links_checked INT DEFAULT 0, links_skipped INT DEFAULT 0, progress_phase TEXT,
   progress_current INT DEFAULT 0, progress_total INT DEFAULT 0, notes TEXT,
   finished_at TEXT);
+
 CREATE TABLE IF NOT EXISTS pages (
-  page_id INTEGER PRIMARY KEY AUTOINCREMENT, scan_id INT, url TEXT, http_status INT,
-  final_url TEXT, redirect_count INT DEFAULT 0, title TEXT, error TEXT, depth INT);
+  page_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scan_id INT,
+  url TEXT,
+  http_status INT,
+  final_url TEXT,
+  redirect_count INT DEFAULT 0,
+  title TEXT,
+  error TEXT,
+  depth INT,
+  priority REAL,
+  priority_reason TEXT,
+  processed_priority REAL,
+  processed_order INT
+);
+
 CREATE TABLE IF NOT EXISTS issues (
   issue_id INTEGER PRIMARY KEY AUTOINCREMENT, scan_id INT, source_url TEXT,
   target_url TEXT, issue_type TEXT, http_status INT, severity TEXT,

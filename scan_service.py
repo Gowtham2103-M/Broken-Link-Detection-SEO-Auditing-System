@@ -158,14 +158,24 @@ def run_scan(scan_id, start_url, page_limit, crawl_depth):
             "UPDATE scans SET progress_phase = 'saving' WHERE scan_id = %s",
             (scan_id,),
         )
+        
         save_to_mysql(
-            start_url, page_limit, result["pages"], result["issues"],
-            datetime.now(), scan_id=scan_id, crawl_depth=crawl_depth, stats=stats,
+        start_url,
+        page_limit,
+        result["pages"],
+        result["issues"],
+        datetime.now(),
+        scan_id=scan_id,
+        crawl_depth=crawl_depth,
+        stats=stats,
+        page_priorities=result.get("page_priorities", {}),
         )
+
         return {
             "status": "completed",
             "pages_inspected": len(result["pages"]),
             "issues_detected": len(result["issues"]),
+            "page_priorities": result.get("page_priorities", {}),
         }
     except Exception as error:
         try:

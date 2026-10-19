@@ -1,14 +1,21 @@
+from ensurepip import version
 import json
 import os
 import time
-from collections import defaultdict, deque
+from collections import defaultdict
+import heapq
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from urllib.parse import urldefrag, urlparse, urlunparse
 
 import requests
 
-from analysis import analyze_html, extract_links, parse_html
+from analysis import (
+    analyze_html,
+    extract_links,
+    extract_navigation_links,
+    parse_html,
+)
 from classification import (
     LONG_REDIRECT_CHAIN,
     classify_link_result,
@@ -167,6 +174,42 @@ def fetch_link(url, session=None):
 # ---------------------------------------------------------------------------
 # Crawl
 # ---------------------------------------------------------------------------
+
+def calculate_page_priority(url, depth, navigation_links, inbound_counts):
+    """Return queue priority and an evidence-based explanation.
+
+    Lower queue-priority numbers are processed first.
+    """
+    is_navigation = url in navigation_links
+    inbound_count = len(inbound_counts.get(url, set()))
+
+    # Lower numbers mean higher crawl priority.
+    priority = depth * 10
+
+    reasons = [f"crawl depth: {depth}"]
+
+    if is_navigation:
+        priority -= 5
+        reasons.append("linked from a detected navigation element")
+
+    if inbound_count >= 5:
+        priority -= 5
+        reasons.append(
+            f"linked from {inbound_count} distinct internal pages"
+        )
+    elif inbound_count >= 2:
+        priority -= 3
+        reasons.append(
+            f"linked from {inbound_count} distinct internal pages"
+        )
+    elif inbound_count == 1:
+        reasons.append("linked from 1 distinct internal page")
+    else:
+        reasons.append("no internal incoming-link evidence recorded")
+
+    return priority, "; ".join(reasons)
+
+
 def crawl_website_detailed(
     start_url,
     max_pages=200,
@@ -191,14 +234,64 @@ def crawl_website_detailed(
     delay = CRAWL_DELAY if crawl_delay is None else crawl_delay
 
     site = host_key(start_url)
-    queue = deque([(start_url, 0)])
-    queued = {start_url}          # every URL ever queued or claimed by a redirect
+    queue = []
+    queued = {start_url}
+    crawled = set()
+    priority_versions = defaultdict(int)
+    page_priorities = {}
     page_data = {}
+    processed_count = 0
     link_sources = defaultdict(set)
+    navigation_links = set()
+    inbound_counts = defaultdict(set)
     link_results = {}
     page_issues = []
     non_https_seen = set()
+    
+    def update_page_priority(url, depth):
+        """Recalculate priority and enqueue a fresh version if needed."""
+        priority, reason = calculate_page_priority(
+            url,
+            depth,
+            navigation_links,
+            inbound_counts,
+        )
+        existing = page_priorities.get(url, {})
+
+        page_priorities[url] = {
+            **existing,
+            "priority": priority,
+            "reason": reason,
+            "depth": depth,
+        }
+
+    # Don't enqueue pages that have already been crawled.
+        if url in crawled:
+            return
+
+        priority_versions[url] += 1
+        version = priority_versions[url]
+
+        heapq.heappush(
+            queue,
+            (priority, depth, url, version),
+        )
+
     started = time.monotonic()
+
+    start_priority, start_reason = calculate_page_priority(
+        start_url,
+        0,
+        navigation_links,
+        inbound_counts,
+    )
+    page_priorities[start_url] = {
+        "priority": start_priority,
+        "reason": start_reason,
+        "depth": 0,
+    }
+    priority_versions[start_url] = 1
+    heapq.heappush(queue, (start_priority, 0, start_url, 1))
 
     stats = {
         "start_url": start_url,
@@ -234,7 +327,21 @@ def crawl_website_detailed(
                 stats["time_limit_reached"] = True
                 break
 
-            url, depth = queue.popleft()
+            priority, depth, url, version = heapq.heappop(queue)
+
+            # Ignore outdated priority entries.
+            if version != priority_versions[url]:
+                continue
+
+# Never crawl the same URL twice.
+            if url in crawled:
+                continue
+
+            crawled.add(url)
+            processed_count += 1
+            page_priorities.setdefault(url, {})
+            page_priorities[url]["processed_priority"] = priority
+            page_priorities[url]["processed_order"] = len(page_data) + 1
             emit("crawling", url)
 
             result = fetch(url, timeout=TIMEOUT, read_body=True, session=session)
@@ -270,11 +377,26 @@ def crawl_website_detailed(
                         source_url=url, target_url=url, http_status=status
                     )
                     page_issues.append(issue)
+                navigation_links.update(
+                normalize_url(link)
+                for link in extract_navigation_links(final_url or url, soup)
+                )
 
                 for raw_link in extract_links(final_url or url, soup):
                     link = normalize_url(raw_link)
                     links.append(link)
                     link_sources[link].add(url)
+
+                    if host_key(link) == site:
+                        previous_count = len(inbound_counts[link])
+                        inbound_counts[link].add(url)
+
+                    if len(inbound_counts[link]) > previous_count:
+                        if link in page_priorities:
+                            update_page_priority(
+                            link,
+                            page_priorities[link]["depth"],
+                        )
 
                     internal = host_key(link) == site
 
@@ -299,8 +421,13 @@ def crawl_website_detailed(
                         and is_crawlable_page(link)
                         and (max_depth is None or depth < max_depth)
                     ):
-                        queue.append((link, depth + 1))
-                        queued.add(link)
+                        
+                        next_depth = depth + 1
+
+                        if link not in queued and link not in crawled:
+                            next_depth = depth + 1
+                            queued.add(link)
+                            update_page_priority(link, next_depth)
 
             page_data[url] = {
                 "url": url,
@@ -415,10 +542,11 @@ def crawl_website_detailed(
     issues.extend(page_issues)
 
     return {
-        "pages": list(page_data.values()),
-        "issues": issues,
-        "stats": stats,
-    }
+    "pages": list(page_data.values()),
+    "issues": issues,
+    "stats": stats,
+    "page_priorities": page_priorities,
+}
 
 
 def crawl_website(start_url, max_pages=200, max_depth=None, progress_callback=None):
@@ -447,6 +575,7 @@ def _scan_notes(stats):
     return " ".join(notes) or None
 
 
+
 def save_to_mysql(
     start_url,
     page_limit,
@@ -456,12 +585,15 @@ def save_to_mysql(
     scan_id=None,
     crawl_depth=None,
     stats=None,
+    page_priorities=None,
 ):
+    
     """Save a finished crawl. Updates ``scan_id`` if given, else inserts a scan."""
     from database import ensure_schema, get_connection
 
     ensure_schema()
     stats = stats or {}
+    page_priorities = page_priorities or {}
     connection = None
     cursor = None
 
@@ -506,27 +638,36 @@ def save_to_mysql(
                 values + (scan_id,),
             )
 
+        
+    
         cursor.executemany(
-            """
-            INSERT INTO pages
-            (scan_id, url, http_status, final_url, redirect_count,
-             title, error, depth)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-            [
-                (
-                    scan_id,
-                    page["url"],
-                    page["status"],
-                    page["final_url"],
-                    page["redirects"],
-                    (page["title"] or "")[:255],
-                    (page["error"] or "")[:1000],
-                    page.get("depth"),
-                )
-                for page in pages
-            ],
+    """
+    INSERT INTO pages
+    (scan_id, url, http_status, final_url, redirect_count,
+     title, error, depth, priority, priority_reason,
+     processed_priority, processed_order)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """,
+    [
+        (
+            scan_id,
+            page["url"],
+            page["status"],
+            page["final_url"],
+            page["redirects"],
+            (page["title"] or "")[:255],
+            (page["error"] or "")[:1000],
+            page.get("depth"),
+            page_priorities.get(page["url"], {}).get("priority"),
+            page_priorities.get(page["url"], {}).get("reason"),
+            page_priorities.get(page["url"], {}).get("processed_priority"),
+            page_priorities.get(page["url"], {}).get("processed_order"),
         )
+        for page in pages
+    ],
+)
+
+
 
         cursor.executemany(
             """

@@ -42,18 +42,25 @@ CREATE_TABLES = [
     )
     """,
     """
-    CREATE TABLE IF NOT EXISTS pages (
-        page_id INT AUTO_INCREMENT PRIMARY KEY,
-        scan_id INT NOT NULL,
-        url VARCHAR(2048) NOT NULL,
-        http_status INT NULL,
-        final_url VARCHAR(2048) NULL,
-        redirect_count INT NOT NULL DEFAULT 0,
-        title VARCHAR(255) NULL,
-        error TEXT NULL,
-        INDEX idx_pages_scan (scan_id),
-        FOREIGN KEY (scan_id) REFERENCES scans(scan_id) ON DELETE CASCADE
-    )
+    
+CREATE TABLE IF NOT EXISTS pages (
+    page_id INT AUTO_INCREMENT PRIMARY KEY,
+    scan_id INT NOT NULL,
+    url VARCHAR(2048) NOT NULL,
+    http_status INT NULL,
+    final_url VARCHAR(2048) NULL,
+    redirect_count INT NOT NULL DEFAULT 0,
+    title VARCHAR(255) NULL,
+    error TEXT NULL,
+    depth INT NULL,
+    priority INT NULL,
+    priority_reason TEXT NULL,
+    processed_priority INT NULL,
+    processed_order INT NULL,
+    INDEX idx_pages_scan (scan_id),
+    FOREIGN KEY (scan_id) REFERENCES scans(scan_id) ON DELETE CASCADE
+)
+
     """,
     """
     CREATE TABLE IF NOT EXISTS issues (

@@ -84,7 +84,7 @@ class Site:
                 <a href="/file.pdf">pdf</a>
                 <img src="/x.png">""")),
             "/about": (200, {}, page("About Us", '<h1>About</h1><a href="/">Home</a>')),
-            "/no-title": (200, {}, page("No Title Test", '<h1>No title</h1>')),
+            "/no-title": (200, {}, page("", '<h1>No title</h1>')),
             "/forbidden": (403, {}, "<html><body>nope</body></html>"),
             "/server-error": (500, {}, "<html><body>boom</body></html>"),
             "/redirect1": (302, {"Location": "/redirect2"}, ""),
@@ -97,6 +97,24 @@ class Site:
             "/depth4": (200, {}, page("Depth 4", '<h1>4</h1>')),
             "/file.pdf": (200, {"Content-Type": "application/pdf"}, b"%PDF-1.4"),
             "/ext-ok": (200, {}, page("External", "<h1>ext</h1>")),
+            
+            "/priority-home": (200, {}, page("Priority Home", """
+                <nav>
+                    <a href="/priority-a">Priority A</a>
+                    <a href="/priority-b">Priority B</a>
+                    <a href="/priority-about">About</a>
+                    <a href="/priority-contact">Contact</a>
+                </nav>
+            """)),
+            "/priority-a": (200, {}, page("Priority A", "<h1>Priority A</h1>")),
+            "/priority-b": (200, {}, page("Priority B", "<h1>Priority B</h1>")),
+            "/priority-about": (200, {}, page("Priority About", """
+                <a href="/priority-a">Priority A</a>
+            """)),
+            "/priority-contact": (200, {}, page("Priority Contact", """
+                <a href="/priority-a">Priority A</a>
+            """)),
+
         }
         return self
 if __name__ == "__main__":
