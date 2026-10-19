@@ -40,14 +40,30 @@ h5 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 2px;
 
 /* ---------- layout ---------- */
 .topbar { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
-.topbar-inner { max-width: 1120px; margin: 0 auto; height: 48px; padding: 0 20px; display: flex; align-items: center; gap: 24px; }
+.topbar-inner {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  height: 48px;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
 .brand { font-weight: 700; letter-spacing: -.01em; }
 nav { display: flex; gap: 4px; height: 100%; }
 .nav-link { border: 0; background: none; padding: 0 12px; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; height: 100%; }
 .nav-link:hover { color: var(--ink); }
 .nav-link.active { color: var(--ink); border-bottom-color: var(--accent); }
 .conn { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-.content { max-width: 1120px; margin: 0 auto; padding: 24px 20px 56px; display: grid; gap: 16px; }
+.content {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 24px 32px 56px;
+  display: grid;
+  gap: 16px;
+}
 .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .page-head p { margin-top: 2px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
